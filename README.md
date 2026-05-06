@@ -8,6 +8,10 @@ cargo run -- README.md --left --width 25 -W
 
 ![swcat demo](assets/swcat-demo.gif)
 
+## Inspiration
+
+Inspired by a [tweet from @github](https://x.com/github/status/2051436651881124044) where they asked Copilot CLI to build a Star Wars crawl from the GitHub Changelog — and it delivered. `swcat` takes that idea and runs with it as a general-purpose `cat` replacement.
+
 ## Requirements
 
 - Rust (stable) — install via [rustup.rs](https://rustup.rs)
