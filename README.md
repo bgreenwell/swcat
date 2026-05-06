@@ -2,7 +2,7 @@
 
 A visually impressive alternative to `cat`.
 
-![swcat demo](swcat-demo.gif) Renders any text file as a cinematic Star Wars–style opening crawl, complete with a starfield, hollow receding logo, and 3D perspective scroll.
+![swcat demo](assets/swcat-demo.gif) Renders any text file as a cinematic Star Wars–style opening crawl, complete with a starfield, hollow receding logo, and 3D perspective scroll.
 
 ## Installation
 
