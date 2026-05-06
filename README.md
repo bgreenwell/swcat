@@ -1,6 +1,6 @@
 # swcat
 
-A visually impressive alternative to `cat`. Renders any text file as a cinematic Star Wars–style opening crawl, complete with a starfield, hollow receding logo, and 3D perspective scroll.
+Why read a file like a normal person? `swcat` renders any text file as a cinematic Star Wars–style opening crawl, complete with a starfield, hollow receding logo, and 3D perspective scroll.
 
 ```bash
 cargo run -- README.md --left --width 25 -W
@@ -10,7 +10,7 @@ cargo run -- README.md --left --width 25 -W
 
 ## Inspiration
 
-Inspired by a [tweet from @github](https://x.com/github/status/2051436651881124044) where they asked Copilot CLI to build a Star Wars crawl from the GitHub Changelog — and it delivered. `swcat` takes that idea and runs with it as a general-purpose `cat` replacement.
+Inspired by a [tweet from @github](https://x.com/github/status/2051436651881124044) where they asked Copilot CLI to build a Star Wars crawl from the GitHub Changelog — and it delivered. `swcat` takes that idea and runs with it — because sometimes `cat` just isn't dramatic enough.
 
 ## Requirements
 
