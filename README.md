@@ -2,6 +2,10 @@
 
 A visually impressive alternative to `cat`. Renders any text file as a cinematic Star Wars–style opening crawl, complete with a starfield, hollow receding logo, and 3D perspective scroll.
 
+```bash
+cargo run -- README.md --left --width 25 -W
+```
+
 ![swcat demo](assets/swcat-demo.gif)
 
 ## Requirements
