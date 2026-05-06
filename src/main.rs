@@ -1,6 +1,8 @@
 mod text;
 
 use clap::Parser;
+
+const FONT_BYTES: &[u8] = include_bytes!("../assets/JetBrainsMono-Regular.ttf");
 use macroquad::prelude::*;
 use macroquad::miniquad::{BlendFactor, BlendState, BlendValue, Equation};
 use std::fs;
@@ -49,8 +51,8 @@ void main() {
 ";
 
 // -- Display ------------------------------------------------------------------
-const WINDOW_WIDTH: i32 = 800;
-const WINDOW_HEIGHT: i32 = 600;
+const BASE_WINDOW_W: i32 = 1000; // golden-ratio base width
+const BASE_WINDOW_H: i32 = 618;  // BASE_WINDOW_W / phi
 const FONT_SIZE: u16 = 40;
 const HEADER_FONT_SIZE: u16 = 70;
 const LINE_HEIGHT: f32 = 55.0;
@@ -65,7 +67,7 @@ const PLANE_BASE_WIDTH: f32 = 15.0;
 // -- Logo ---------------------------------------------------------------------
 const LOGO_TEXTURE_W: u32 = 2048;
 const LOGO_TEXTURE_H: u32 = 1024;
-const LOGO_FONT_SIZE: u16 = 500;
+const LOGO_FONT_SIZE: u16 = 650;
 const LOGO_DURATION: f32 = 6.0;
 const LOGO_BORDER_THICKNESS: f32 = 4.0;
 
@@ -135,13 +137,18 @@ struct Args {
     /// Omit the filename header at the top of the crawl
     #[arg(long)]
     no_header: bool,
+
+    /// Window size multiplier (default 1.0 = 1000x618, golden ratio)
+    #[arg(long, default_value_t = 1.0)]
+    scale: f32,
 }
 
 fn window_conf() -> Conf {
+    let scale = Args::parse().scale.max(0.1);
     Conf {
         window_title: "swcat".to_owned(),
-        window_width: WINDOW_WIDTH,
-        window_height: WINDOW_HEIGHT,
+        window_width: (BASE_WINDOW_W as f32 * scale).round() as i32,
+        window_height: (BASE_WINDOW_H as f32 * scale).round() as i32,
         window_resizable: true,
         ..Default::default()
     }
@@ -150,8 +157,8 @@ fn window_conf() -> Conf {
 fn draw_stars(stars: &[Star]) {
     for star in stars {
         draw_circle(
-            star.x / WINDOW_WIDTH as f32 * screen_width(),
-            star.y / WINDOW_HEIGHT as f32 * screen_height(),
+            star.x / BASE_WINDOW_W as f32 * screen_width(),
+            star.y / BASE_WINDOW_H as f32 * screen_height(),
             star.size,
             Color::new(star.brightness, star.brightness, star.brightness, 1.0),
         );
@@ -166,6 +173,10 @@ async fn main() {
         eprintln!("Error: --speed must be a positive number");
         return;
     }
+    if args.scale <= 0.0 {
+        eprintln!("Error: --scale must be a positive number");
+        return;
+    }
 
     let content = match fs::read_to_string(&args.file) {
         Ok(c) => c,
@@ -175,10 +186,9 @@ async fn main() {
         }
     };
 
-    // Strip extension for a cleaner cinematic header (e.g. "MAIN" not "MAIN.RS")
     let stem = args
         .file
-        .file_stem()
+        .file_name()
         .unwrap_or_default()
         .to_string_lossy()
         .to_uppercase();
@@ -206,10 +216,12 @@ async fn main() {
     )
     .expect("Failed to load hollow text material");
 
+    let font = load_ttf_font_from_bytes(FONT_BYTES).expect("Failed to load font");
+
     let stars: Vec<Star> = (0..STAR_COUNT)
         .map(|_| Star {
-            x: rand::gen_range(0.0f32, WINDOW_WIDTH as f32),
-            y: rand::gen_range(0.0f32, WINDOW_HEIGHT as f32),
+            x: rand::gen_range(0.0f32, BASE_WINDOW_W as f32),
+            y: rand::gen_range(0.0f32, BASE_WINDOW_H as f32),
             size: rand::gen_range(STAR_SIZE_MIN, STAR_SIZE_MAX),
             brightness: rand::gen_range(STAR_BRIGHTNESS_MIN, STAR_BRIGHTNESS_MAX),
         })
@@ -227,7 +239,7 @@ async fn main() {
     let mut max_text_width = 0.0f32;
     for (i, line) in lines.iter().enumerate() {
         let size = if i == 0 && !args.no_header { HEADER_FONT_SIZE } else { FONT_SIZE };
-        let dim = measure_text(line, None, size, 1.0);
+        let dim = measure_text(line, Some(&font), size, 1.0);
         if dim.width > max_text_width {
             max_text_width = dim.width;
         }
@@ -257,13 +269,15 @@ async fn main() {
             let is_header = !args.no_header && chunk_idx == 0 && i == 0;
             let font_size = if is_header { HEADER_FONT_SIZE } else { FONT_SIZE };
 
-            let x = if args.left {
+            let x = if args.left && !is_header {
                 (texture_width as f32 - max_text_width) / 2.0
             } else {
-                let dim = measure_text(line, None, font_size, 1.0);
+                let dim = measure_text(line, Some(&font), font_size, 1.0);
                 (texture_width as f32 - dim.width) / 2.0
             };
-            draw_text(line, x, i as f32 * LINE_HEIGHT + 60.0, font_size as f32, YELLOW);
+            draw_text_ex(line, x, i as f32 * LINE_HEIGHT + 60.0, TextParams {
+                font: Some(&font), font_size, color: YELLOW, ..Default::default()
+            });
         }
 
         let chunk_plane_height = plane_width * (chunk_h as f32 / texture_width as f32);
@@ -304,13 +318,15 @@ async fn main() {
 
                 let p_lines: Vec<&str> = text.lines().collect();
                 let block_w = p_lines.iter()
-                    .map(|l| measure_text(l, None, p_font_size, 1.0).width)
+                    .map(|l| measure_text(l, Some(&font), p_font_size, 1.0).width)
                     .fold(0.0f32, f32::max);
                 let x = (screen_width() - block_w) / 2.0;
                 let total_h = p_lines.len() as f32 * line_spacing;
                 let mut y = (screen_height() - total_h) / 2.0;
                 for line in &p_lines {
-                    draw_text(line, x, y, p_font_size as f32, color);
+                    draw_text_ex(line, x, y, TextParams {
+                        font: Some(&font), font_size: p_font_size, color, ..Default::default()
+                    });
                     y += line_spacing;
                 }
 
@@ -325,7 +341,7 @@ async fn main() {
 
                 if !logo_rendered {
                     let logo_text = "SWCAT";
-                    let dim = measure_text(logo_text, None, LOGO_FONT_SIZE, 1.0);
+                    let dim = measure_text(logo_text, Some(&font), LOGO_FONT_SIZE, 1.0);
                     set_camera(&Camera2D {
                         render_target: Some(logo_target.clone()),
                         zoom: vec2(2.0 / LOGO_TEXTURE_W as f32, -2.0 / LOGO_TEXTURE_H as f32),
@@ -333,12 +349,11 @@ async fn main() {
                         ..Default::default()
                     });
                     clear_background(Color::new(0.0, 0.0, 0.0, 0.0));
-                    draw_text(
+                    draw_text_ex(
                         logo_text,
                         (LOGO_TEXTURE_W as f32 - dim.width) / 2.0,
                         LOGO_TEXTURE_H as f32 / 2.0 + dim.height / 4.0,
-                        LOGO_FONT_SIZE as f32,
-                        WHITE,
+                        TextParams { font: Some(&font), font_size: LOGO_FONT_SIZE, color: WHITE, ..Default::default() },
                     );
                     set_default_camera();
                     logo_rendered = true;

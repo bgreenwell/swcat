@@ -1,6 +1,8 @@
 # swcat
 
-A visually impressive alternative to `cat`. Renders any text file as a cinematic Star Wars–style opening crawl, complete with a starfield, hollow receding logo, and 3D perspective scroll.
+A visually impressive alternative to `cat`.
+
+![swcat demo](swcat-demo.gif) Renders any text file as a cinematic Star Wars–style opening crawl, complete with a starfield, hollow receding logo, and 3D perspective scroll.
 
 ## Installation
 
@@ -30,6 +32,7 @@ swcat <file> [OPTIONS]
 | `--width <n>` | `-w` | Truncate lines longer than `n` characters |
 | `--wrap` | `-W` | Word-wrap instead of truncating (requires `--width`) |
 | `--no-header` | | Omit the filename title at the top of the crawl |
+| `--scale <f32>` | | Window size multiplier (default `1.0` = 1000×618) |
 
 ### Examples
 

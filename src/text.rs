@@ -1,40 +1,6 @@
 const TAB_WIDTH: usize = 4;
 
-/// Map a character to its closest printable ASCII equivalent, or '?' if none.
-/// macroquad's built-in font only covers ASCII 0x20–0x7E; anything outside
-/// that range renders as a box glyph.
-fn ascii_safe(ch: char) -> char {
-    match ch {
-        // Printable ASCII: pass through unchanged
-        '\x20'..='\x7e' => ch,
-        // Box-drawing and block elements -> dashes / pipes
-        '\u{2500}'..='\u{257f}' => '-',
-        '\u{2580}'..='\u{259f}' => '#',
-        // Arrows -> angle brackets / dashes
-        '\u{2190}' | '\u{2192}' => '-',
-        '\u{2191}' | '\u{2193}' => '|',
-        '\u{21d2}' => '>',
-        // Bullets, ellipsis, dashes
-        '\u{2022}' | '\u{2023}' | '\u{25e6}' => '*',
-        '\u{2013}' | '\u{2014}' => '-',
-        '\u{2026}' => '.',
-        // Quotes
-        '\u{2018}' | '\u{2019}' => '\'',
-        '\u{201c}' | '\u{201d}' => '"',
-        // Extended Latin: strip diacritics to base letter where easy
-        'À'..='Å' | 'à'..='å' => 'a',
-        'È'..='Ë' | 'è'..='ë' => 'e',
-        'Ì'..='Ï' | 'ì'..='ï' => 'i',
-        'Ò'..='Ö' | 'ò'..='ö' => 'o',
-        'Ù'..='Ü' | 'ù'..='ü' => 'u',
-        'Ç' | 'ç' => 'c',
-        'Ñ' | 'ñ' => 'n',
-        // Everything else
-        _ => '?',
-    }
-}
-
-/// Expand tabs and map every character to a printable ASCII equivalent.
+/// Expand tab characters to spaces using column-aware stops.
 pub fn expand_tabs(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut col = 0usize;
@@ -46,7 +12,7 @@ pub fn expand_tabs(s: &str) -> String {
             }
             col += spaces;
         } else {
-            out.push(ascii_safe(ch));
+            out.push(ch);
             col += 1;
         }
     }
@@ -123,14 +89,14 @@ mod tests {
     }
 
     #[test]
-    fn box_drawing_chars_become_dashes() {
-        // U+2500 (BOX DRAWINGS LIGHT HORIZONTAL) and U+2502 (VERTICAL)
-        assert_eq!(expand_tabs("\u{2500}\u{2500}\u{2500}"), "---");
+    fn box_drawing_chars_pass_through() {
+        // JetBrains Mono covers box-drawing; characters reach the font unchanged
+        assert_eq!(expand_tabs("\u{2500}\u{2500}\u{2500}"), "\u{2500}\u{2500}\u{2500}");
     }
 
     #[test]
-    fn extended_latin_stripped_to_base() {
-        assert_eq!(expand_tabs("caf\u{00e9}"), "cafe");
+    fn extended_latin_passes_through() {
+        assert_eq!(expand_tabs("caf\u{00e9}"), "café");
     }
 
     // ── process_lines: passthrough ────────────────────────────────────────────
@@ -164,9 +130,9 @@ mod tests {
 
     #[test]
     fn truncate_emoji_safe() {
-        // Emoji fall outside ASCII and are replaced with '?'; truncation still works
+        // Each emoji is one Unicode scalar; char-based truncation is correct
         let out = process_lines("🌟🌟🌟🌟🌟", Some(3), false);
-        assert_eq!(out, vec!["???"]);
+        assert_eq!(out, vec!["🌟🌟🌟"]);
     }
 
     // ── process_lines: word-wrap ──────────────────────────────────────────────
@@ -193,9 +159,9 @@ mod tests {
 
     #[test]
     fn wrap_is_unicode_safe() {
-        // 'e' with accent is sanitized to 'e'; wrapping still works correctly
+        // 'é' is one char; wrapping counts chars correctly regardless of byte width
         let out = process_lines("café latte", Some(5), true);
-        assert_eq!(out, vec!["cafe", "latte"]);
+        assert_eq!(out, vec!["café", "latte"]);
     }
 
     #[test]
