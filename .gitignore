@@ -1,1 +1,9 @@
 /target
+
+# Local development reference images
+sw_logo.jpg
+sw_screen_crawl.jpeg
+
+# Claude Code local config
+CLAUDE.md
+.claude/
