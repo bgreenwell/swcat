@@ -1,19 +1,28 @@
 # swcat
 
-A visually impressive alternative to `cat`.
+A visually impressive alternative to `cat`. Renders any text file as a cinematic Star Wars–style opening crawl, complete with a starfield, hollow receding logo, and 3D perspective scroll.
 
-![swcat demo](assets/swcat-demo.gif) Renders any text file as a cinematic Star Wars–style opening crawl, complete with a starfield, hollow receding logo, and 3D perspective scroll.
+![swcat demo](assets/swcat-demo.gif)
+
+## Requirements
+
+- Rust (stable) — install via [rustup.rs](https://rustup.rs)
+- A GPU with OpenGL support (any modern machine)
 
 ## Installation
 
+Install directly from GitHub (no clone needed):
+
 ```bash
-cargo install --path .
+cargo install --git https://github.com/bgreenwell/swcat
 ```
 
-Or run directly without installing:
+Or clone and install locally:
 
 ```bash
-cargo run -- <file> [options]
+git clone https://github.com/bgreenwell/swcat
+cd swcat
+cargo install --path .
 ```
 
 ## Usage
@@ -59,10 +68,9 @@ swcat notes.txt --skip-intro --speed 80
 
 ## Building from source
 
-Requires Rust (stable). No system dependencies beyond a GPU with OpenGL support.
-
 ```bash
+git clone https://github.com/bgreenwell/swcat
+cd swcat
 cargo build --release
+./target/release/swcat <file>
 ```
-
-The binary lands at `target/release/swcat`.
