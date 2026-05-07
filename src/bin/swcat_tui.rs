@@ -197,7 +197,7 @@ fn render_crawl(frame: &mut Frame, stars: &[Star], lines: &[String], scroll: f32
 
     let w = area.width as usize;
     let h = (area.height as usize).saturating_sub(1); // bottom row = progress bar
-    let max_w = ((w as f32) * 0.75) as usize;
+    let max_w = 25_usize;
 
     for screen_row in 0..h {
         let depth_idx = h.saturating_sub(1 + screen_row);
@@ -208,7 +208,7 @@ fn render_crawl(frame: &mut Frame, stars: &[Star], lines: &[String], scroll: f32
             continue;
         }
 
-        let perspective = 1.0_f32 - depth * 0.85;
+        let perspective = (1.0_f32 - depth).powf(1.5);
         let display_w = ((perspective * max_w as f32) as usize).max(1);
 
         let chars: Vec<char> = lines[line_idx as usize].chars().collect();
