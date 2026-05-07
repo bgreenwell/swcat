@@ -213,13 +213,20 @@ fn render_crawl(frame: &mut Frame, stars: &[Star], lines: &[String], scroll: f32
 
         let chars: Vec<char> = lines[line_idx as usize].chars().collect();
         let clipped: String = if chars.len() > display_w {
+            // Center-clip: trim equally from both sides
             let skip = (chars.len() - display_w) / 2;
             chars[skip..skip + display_w].iter().collect()
         } else {
             chars.iter().collect()
         };
+        let clipped_len = clipped.chars().count();
 
-        let left_pad = (w.saturating_sub(display_w)) / 2;
+        // Two-level centering:
+        //   1. Center the perspective band in the terminal
+        //   2. Center the actual text within that band
+        let band_left = (w.saturating_sub(display_w)) / 2;
+        let text_left = band_left + (display_w.saturating_sub(clipped_len)) / 2;
+
         let brightness = 1.0 - depth;
         let color = Color::Rgb(
             (255.0 * brightness) as u8,
@@ -227,9 +234,9 @@ fn render_crawl(frame: &mut Frame, stars: &[Star], lines: &[String], scroll: f32
             0,
         );
 
-        if left_pad < w {
+        if text_left < w {
             buf.set_string(
-                left_pad as u16,
+                text_left as u16,
                 screen_row as u16,
                 &clipped,
                 Style::default().fg(color).bg(Color::Black),
