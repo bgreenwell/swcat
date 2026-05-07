@@ -1,53 +1,48 @@
 # swcat - Cinematic Text Crawler
 
-`swcat` is a Rust-based command-line tool that renders text files as a cinematic Star Wars opening crawl. It features a full intro sequence, including a prologue, a hollow receding logo, and a 3D perspective text crawl with a randomized starfield.
+`swcat` is a Rust-based command-line tool that renders text files as a cinematic Star Wars opening crawl. It supports two modes: a terminal-based TUI (default) and a high-fidelity graphical GUI (`--gui`).
 
 ## Project Overview
 
 - **Purpose**: A visually impressive alternative to `cat` for viewing text or code files.
 - **Technologies**: 
   - **Rust**: Language.
-  - **Macroquad**: Game engine used for 2D/3D rendering, windowing, and shaders.
+  - **Ratatui / Crossterm**: Used for the default TUI mode.
+  - **Macroquad**: Used for the GUI mode (2D/3D rendering, windowing, and shaders).
   - **Clap**: CLI argument parsing.
-  - **GLSL**: Custom shaders for specialized visual effects (e.g., the "hollow" logo).
 - **Architecture**:
-  - **State Machine**: The app transitions through `Prologue`, `Logo`, and `Crawl` states.
-  - **Multi-Chunk Rendering**: To support long files (like source code) without hitting GPU texture limits, text is split into vertical chunks, each rendered to its own texture and placed as a separate segment in 3D space.
-  - **Dynamic Scaling**: The 3D plane and texture width scale dynamically based on the longest line in the input file.
+  - **Modular Router**: `main.rs` parses arguments and routes execution to either the `tui` or `gui` modules.
+  - **TUI Module (`src/tui.rs`)**: Uses a custom rendering loop to simulate 3D perspective with ASCII art (brackets) and dynamic centering.
+  - **GUI Module (`src/gui.rs`)**: Uses a full 3D engine with GLSL shaders for the intro and crawl sequence.
+  - **Shared Text Logic (`src/text.rs`)**: Handles tab expansion, width limiting, and word wrapping.
 
 ## Building and Running
 
 ### Key Commands
 
 - **Build**: `cargo build`
-- **Run**: `cargo run -- <file_path> [options]`
+- **Run (TUI)**: `cargo run -- <file_path> [options]`
+- **Run (GUI)**: `cargo run -- --gui <file_path> [options]`
 - **Install**: `cargo install --path .`
 
 ### CLI Options
 
 - `<file_path>`: The path to the text file to crawl.
-- `--speed <f32>`: Sets the crawl speed (default: 50.0).
-- `--skip-intro`: Skips the "A long time ago..." and logo sequences.
-- `--left`: Aligns the crawl text to the left (ideal for code).
-- `--width <usize>` / `-w`: Limits the line width (truncates by default).
-- `--wrap` / `-W`: Enables word wrapping when used with `--width`.
+- `--gui`: Switches to graphical mode.
+- `--speed <f32>`: Sets the crawl speed (TUI default: 3.0, GUI default: 50.0).
+- `--skip-intro`: Skips the prologue and logo sequences.
+- `--left`: Aligns the crawl text to the left (ideal for code). In TUI, the header remains centered.
+- `--border` (TUI only): Draws bracket borders around the crawl.
+- `--width <usize>` / `-w`: Limits the line width.
+- `--wrap` / `-W`: Enables word wrapping.
 
 ## Development Conventions
 
-- **Shaders**: Custom GLSL shaders are embedded as constants (`VERTEX_SHADER`, `FRAGMENT_SHADER`).
-- **Rendering Logic**:
-  - **Prologue**: Blue text, left-aligned.
-  - **Logo**: Hollow yellow "SWCAT" logo using a thickness-detecting fragment shader over a transparent render target.
-  - **Crawl**: Yellow text rendered onto `RenderTarget` chunks and mapped to 3D quads.
-- **Coordinate Systems**:
-  - Uses `Camera2D` for UI and off-screen rendering.
-  - Uses `Camera3D` for the perspective crawl.
-  - Note: `RenderTarget` mapping requires careful Y-axis flipping (`zoom: y = -2.0 / height`, `flip_y: true`).
-- **Input**:
-  - `Esc` or `q`: Exit.
-  - Mouse Wheel: Manual scroll control.
-
-## Asset Reference
-- `sw_logo.jpg`: Reference for the "hollow" bubble style.
-- `sw_screen_crawl.jpeg`: Reference for the 3D perspective and starfield.
-- `crawl.txt`: Sample text for testing.
+- **TUI Rendering**:
+  - Simulates perspective by "shrinking" the horizontal space available for text on higher screen rows.
+  - **Dynamic Centering**: Headers and body text (unless `--left` is used) are centered frame-by-frame based on the narrowed viewport.
+- **GUI Rendering**:
+  - **Shaders**: Custom GLSL shaders are embedded as constants in `gui.rs`.
+  - **Logo**: Hollow yellow logo using a thickness-detecting fragment shader.
+  - **Multi-Chunk Rendering**: Split into vertical textures to avoid GPU limits.
+- **State Machine**: Both modes follow a similar `Prologue` -> `Logo` -> `Crawl` lifecycle.

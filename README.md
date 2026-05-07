@@ -1,9 +1,13 @@
 # swcat
 
-Why read a file like a normal person? `swcat` renders any text file as a cinematic Star Wars–style opening crawl, complete with a starfield, hollow receding logo, and 3D perspective scroll.
+Why read a file like a normal person? `swcat` renders any text file as a cinematic Star Wars–style opening crawl. By default, it runs in your terminal (TUI), but it also features a high-fidelity graphical mode (GUI) with starfields and hollow receding logos.
 
 ```bash
-cargo run -- README.md --left --width 25 -W
+# Terminal (TUI) mode
+swcat README.md
+
+# Graphical (GUI) mode
+swcat README.md --gui
 ```
 
 ![swcat demo](assets/swcat-demo.gif)
@@ -15,11 +19,12 @@ Inspired by a [tweet from @github](https://x.com/github/status/20514366518811240
 ## Requirements
 
 - Rust (stable) — install via [rustup.rs](https://rustup.rs)
-- A GPU with OpenGL support (any modern machine)
+- **TUI Mode (Default):** Any standard terminal.
+- **GUI Mode (`--gui`):** A GPU with OpenGL support.
 
 ## Installation
 
-Install directly from GitHub (no clone needed):
+Install directly from GitHub:
 
 ```bash
 cargo install --git https://github.com/bgreenwell/swcat
@@ -39,29 +44,39 @@ cargo install --path .
 swcat <file> [OPTIONS]
 ```
 
-### Options
+### General Options
 
 | Flag | Short | Description |
 |---|---|---|
-| `--speed <f32>` | `-s` | Crawl speed (default: `50.0`) |
+| `--gui` | | Run in graphical mode instead of the terminal |
+| `--speed <f32>` | `-s` | Crawl speed (TUI default: `3.0`, GUI default: `50.0`) |
 | `--skip-intro` | | Skip the "A long time ago…" and logo sequences |
-| `--left` | | Left-align text as a block (recommended for code) |
 | `--width <n>` | `-w` | Truncate lines longer than `n` characters |
 | `--wrap` | `-W` | Word-wrap instead of truncating (requires `--width`) |
 | `--no-header` | | Omit the filename title at the top of the crawl |
-| `--scale <f32>` | | Window size multiplier (default `1.0` = 1000×618) |
+
+### Mode-Specific Options
+
+| Flag | Mode | Description |
+|---|---|---|
+| `--border` | TUI | Show a bracket border around the text crawl |
+| `--left` | GUI/TUI | Left-align body text (TUI header stays centered) |
+| `--scale <f32>` | GUI | Window size multiplier (default `1.0` = 1000×618) |
 
 ### Examples
 
 ```bash
-# Crawl a prose file
+# Standard terminal crawl
 swcat README.md
 
-# Crawl source code, left-aligned, wrapped at 80 chars
-swcat src/main.rs --left --width 80 --wrap
+# Terminal crawl with borders and wrapping
+swcat src/main.rs --border --width 80 --wrap
 
-# Jump straight to the crawl
-swcat notes.txt --skip-intro --speed 80
+# High-fidelity GUI crawl
+swcat README.md --gui
+
+# GUI crawl, left-aligned code, fast speed
+swcat src/lib.rs --gui --left --speed 100
 ```
 
 ## Controls
@@ -71,14 +86,5 @@ swcat notes.txt --skip-intro --speed 80
 | `Space` | Pause / resume |
 | `↑` / `=` | Increase speed |
 | `↓` / `-` | Decrease speed |
-| Mouse wheel | Manual scroll |
+| Mouse wheel | Manual scroll (GUI only) |
 | `q` / `Esc` | Quit |
-
-## Building from source
-
-```bash
-git clone https://github.com/bgreenwell/swcat
-cd swcat
-cargo build --release
-./target/release/swcat <file>
-```
