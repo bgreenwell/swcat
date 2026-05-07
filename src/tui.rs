@@ -5,7 +5,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use clap::Parser;
 use crossterm::{
     cursor,
     event::{self, Event, KeyCode, KeyEventKind},
@@ -17,47 +16,38 @@ use ratatui::{
     layout::{Alignment, Position, Rect},
     prelude::Widget,
     style::{Color, Style},
-    text::Text,
     widgets::Paragraph,
     Frame, Terminal,
 };
 
-use swcat::text;
+use crate::text;
 
 const PROLOGUE_MS: f32 = 4000.0;
 const LOGO_MS: f32 = 6000.0;
-const DEFAULT_SPEED: f32 = 3.0;  // lines per second
 const SPEED_STEP: f32 = 0.5;
 const MAX_SPEED: f32 = 20.0;
 const STAR_COUNT: usize = 180;
 const FRAME_MS: u64 = 33; // ~30 fps
 const MAX_W: usize = 75;
+const TAPER: usize = 1; // rows between each 1-char convergence per side
 
-const LOGO_ART: &str = "\
- ____  _    _  ____    _  _____ \n\
-/ ___|| |  | |/ ___|  / \\|_   _|\n\
-\\___ \\| |/\\| | |    / _ \\ | |  \n\
- ___) |  /\\  | |___ / ___ \\| |  \n\
-|____/|_/  \\_|\\____/_/   \\_\\_|";
+const LOGO_ART: &str = r#" _____ __        __   ____     _    _____  
+/ ___| \ \      / /  / ___|   / \   |_   _|
+\___ \  \ \ /\ / /  | |      / _ \    | |  
+ ___) |  \ V  V /   | |___  / ___ \   | |  
+|____/    \_/\_/     \____|/_/   \_\  |_|  "#;
 
-const PROLOGUE_TEXT: &str = "A long time ago in a terminal far,\n\nfar, far away....";
+const PROLOGUE_TEXT: &str = "A long time ago in a terminal far,\nfar away....";
 
-#[derive(Parser)]
-#[command(name = "swcat-tui", about = "Star Wars crawl in your terminal")]
-struct Args {
-    file: PathBuf,
-    #[arg(short = 's', long, default_value_t = DEFAULT_SPEED)]
-    speed: f32,
-    #[arg(long)]
-    skip_intro: bool,
-    #[arg(long)]
-    left: bool,
-    #[arg(short = 'w', long)]
-    width: Option<usize>,
-    #[arg(short = 'W', long)]
-    wrap: bool,
-    #[arg(long)]
-    no_header: bool,
+pub struct TuiArgs {
+    pub file: PathBuf,
+    pub speed: f32,
+    pub skip_intro: bool,
+    pub width: Option<usize>,
+    pub wrap: bool,
+    pub no_header: bool,
+    pub border: bool,
+    pub left: bool,
 }
 
 struct Star {
@@ -73,7 +63,6 @@ enum AppState {
     Done,
 }
 
-// Smooth fade envelope: in over first 30%, hold 40%, out over last 30%.
 fn fade_alpha(elapsed_ms: f32, total_ms: f32) -> f32 {
     let t = (elapsed_ms / total_ms).clamp(0.0, 1.0);
     let fade_frac = 0.30;
@@ -122,21 +111,21 @@ fn draw_stars(buf: &mut ratatui::buffer::Buffer, stars: &[Star], area: Rect) {
     }
 }
 
-fn centered_sub(area: Rect, width_pct: u16, height: u16) -> Rect {
-    let w = (area.width * width_pct / 100).max(1).min(area.width);
-    let x = area.x + (area.width.saturating_sub(w)) / 2;
-    let y = area.y + area.height.saturating_sub(height) / 2;
-    Rect::new(x, y, w, height.min(area.height))
-}
-
 fn render_prologue(frame: &mut Frame, elapsed_ms: f32) {
     let area = frame.area();
     let a = fade_alpha(elapsed_ms, PROLOGUE_MS);
     let color = lerp_color(a, 0, 204, 255); // cyan
-    let para = Paragraph::new(Text::from(PROLOGUE_TEXT).alignment(Alignment::Center))
+
+    let text_w = PROLOGUE_TEXT.lines().map(|l| l.chars().count()).max().unwrap_or(0) as u16;
+    let text_h = PROLOGUE_TEXT.lines().count() as u16;
+    let tx = area.x + area.width.saturating_sub(text_w) / 2;
+    let ty = area.y + area.height.saturating_sub(text_h) / 2;
+    let text_area = Rect::new(tx, ty, text_w.min(area.width), text_h.min(area.height));
+
+    let para = Paragraph::new(PROLOGUE_TEXT)
         .style(Style::default().fg(color).bg(Color::Black))
-        .alignment(Alignment::Center);
-    let text_area = centered_sub(area, 60, 5);
+        .alignment(Alignment::Left);
+
     frame.render_widget(Paragraph::new("").style(Style::default().bg(Color::Black)), area);
     frame.render_widget(para, text_area);
 }
@@ -145,7 +134,6 @@ fn render_logo(frame: &mut Frame, stars: &[Star], elapsed_ms: f32) {
     let area = frame.area();
     let buf = frame.buffer_mut();
 
-    // Clear to black
     for y in 0..area.height {
         for x in 0..area.width {
             if let Some(cell) = buf.cell_mut(Position::new(x, y)) {
@@ -156,23 +144,27 @@ fn render_logo(frame: &mut Frame, stars: &[Star], elapsed_ms: f32) {
     draw_stars(buf, stars, area);
 
     let a = fade_alpha(elapsed_ms, LOGO_MS);
-    let color = lerp_color(a, 255, 215, 0); // gold/yellow
+    let color = lerp_color(a, 255, 215, 0); // gold
+
+    let logo_w = LOGO_ART.lines().map(|l| l.chars().count()).max().unwrap_or(0) as u16;
+    let logo_h = LOGO_ART.lines().count() as u16;
+    let lx = area.x + area.width.saturating_sub(logo_w) / 2;
+    let ly = area.y + area.height.saturating_sub(logo_h) / 2;
+    let logo_area = Rect::new(lx, ly, logo_w.min(area.width), logo_h.min(area.height));
+
     let logo_para = Paragraph::new(LOGO_ART)
         .style(Style::default().fg(color).bg(Color::Black))
-        .alignment(Alignment::Center);
-    let logo_area = centered_sub(area, 70, 7);
+        .alignment(Alignment::Left);
 
-    // Write logo into buffer manually so it layers over the stars
     let tmp_buf = {
         let mut b = ratatui::buffer::Buffer::empty(logo_area);
         logo_para.render(logo_area, &mut b);
         b
     };
-    for y in 0..logo_area.height {
-        for x in 0..logo_area.width {
-            let src_pos = Position::new(x, y);
-            let dst_pos = Position::new(logo_area.x + x, logo_area.y + y);
-            if let (Some(src), Some(dst)) = (tmp_buf.cell(src_pos), buf.cell_mut(dst_pos)) {
+    for row in 0..logo_area.height {
+        for col in 0..logo_area.width {
+            let pos = Position::new(logo_area.x + col, logo_area.y + row);
+            if let (Some(src), Some(dst)) = (tmp_buf.cell(pos), buf.cell_mut(pos)) {
                 if src.symbol() != " " {
                     dst.set_symbol(src.symbol()).set_fg(src.fg).set_bg(src.bg);
                 }
@@ -181,11 +173,10 @@ fn render_logo(frame: &mut Frame, stars: &[Star], elapsed_ms: f32) {
     }
 }
 
-fn render_crawl(frame: &mut Frame, stars: &[Star], lines: &[String], scroll: f32, left: bool) {
+fn render_crawl(frame: &mut Frame, stars: &[Star], lines: &[String], scroll: f32, border: bool, no_header: bool, left: bool) {
     let area = frame.area();
     let buf = frame.buffer_mut();
 
-    // Clear
     for y in 0..area.height {
         for x in 0..area.width {
             if let Some(cell) = buf.cell_mut(Position::new(x, y)) {
@@ -193,65 +184,71 @@ fn render_crawl(frame: &mut Frame, stars: &[Star], lines: &[String], scroll: f32
             }
         }
     }
-
     draw_stars(buf, stars, area);
 
     let w = area.width as usize;
-    let h = (area.height as usize).saturating_sub(1); // bottom row = progress bar
+    let h = (area.height as usize).saturating_sub(1);
+
+    let band_w = MAX_W + 2;
+    let band_left = (w.saturating_sub(band_w)) / 2;
 
     for screen_row in 0..h {
         let depth_idx = h.saturating_sub(1 + screen_row);
-        let depth = depth_idx as f32 / (h as f32 - 1.0).max(1.0);
+        let shrink = depth_idx / TAPER;
 
-        let line_idx = scroll as i64 - depth_idx as i64;
-        if line_idx < 0 || line_idx as usize >= lines.len() {
+        let slash_col = band_left + shrink;
+        let backslash_col = band_left + band_w - 1 - shrink;
+
+        if slash_col >= backslash_col {
             continue;
         }
 
-        let perspective = (1.0_f32 - depth).powf(1.5);
-        let display_w = ((perspective * MAX_W as f32) as usize).max(1);
-
-        let chars: Vec<char> = lines[line_idx as usize].chars().collect();
-        let clipped: String = if chars.len() > display_w {
-            if left {
-                // Left-aligned: keep the leading characters, drop from the right
-                chars[..display_w].iter().collect()
-            } else {
-                // Centered: trim equally from both sides
-                let skip = (chars.len() - display_w) / 2;
-                chars[skip..skip + display_w].iter().collect()
-            }
-        } else {
-            chars.iter().collect()
-        };
-        let clipped_len = clipped.chars().count();
-
-        // Center the perspective band in the terminal, then place text within it.
-        let band_left = (w.saturating_sub(MAX_W)) / 2;
-        let text_left = if left {
-            band_left
-        } else {
-            band_left + (display_w.saturating_sub(clipped_len)) / 2
-        };
-
-        let brightness = 1.0 - depth;
+        let inner_w = backslash_col - slash_col - 1;
+        let brightness = 1.0 - (depth_idx as f32 / h as f32);
         let color = Color::Rgb(
             (255.0 * brightness) as u8,
             (200.0 * brightness) as u8,
             0,
         );
 
-        if text_left < w {
-            buf.set_string(
-                text_left as u16,
-                screen_row as u16,
-                &clipped,
-                Style::default().fg(color).bg(Color::Black),
-            );
+        if border {
+            if slash_col < w {
+                if let Some(cell) = buf.cell_mut(Position::new(slash_col as u16, screen_row as u16)) {
+                    cell.set_char('/').set_fg(color).set_bg(Color::Black);
+                }
+            }
+            if backslash_col < w {
+                if let Some(cell) = buf.cell_mut(Position::new(backslash_col as u16, screen_row as u16)) {
+                    cell.set_char('\\').set_fg(color).set_bg(Color::Black);
+                }
+            }
+        }
+
+        let line_idx = scroll as i64 - depth_idx as i64;
+        if line_idx >= 0 && (line_idx as usize) < lines.len() {
+            let chars: Vec<char> = lines[line_idx as usize].chars().collect();
+            
+            let is_header = !no_header && line_idx == 1;
+            let should_center = is_header || !left;
+            
+            let text_col = if should_center {
+                slash_col + 1 + (inner_w.saturating_sub(chars.len()) / 2)
+            } else {
+                slash_col + 1
+            };
+
+            let visible: String = chars.iter().take(inner_w.saturating_sub(text_col.saturating_sub(slash_col + 1))).collect();
+            if text_col < w && !visible.is_empty() {
+                buf.set_string(
+                    text_col as u16,
+                    screen_row as u16,
+                    &visible,
+                    Style::default().fg(color).bg(Color::Black),
+                );
+            }
         }
     }
 
-    // Progress bar
     let total = lines.len() as f32;
     let progress = if total > 0.0 { (scroll / total).clamp(0.0, 1.0) } else { 0.0 };
     let bar_row = area.height - 1;
@@ -267,7 +264,26 @@ fn render_crawl(frame: &mut Frame, stars: &[Star], lines: &[String], scroll: f32
     }
 }
 
-fn run(args: &Args, lines: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run(args: TuiArgs) -> Result<(), Box<dyn std::error::Error>> {
+    let raw = std::fs::read_to_string(&args.file)?;
+    
+    let wrap_w = args.width.unwrap_or(MAX_W);
+    let mut lines = text::process_lines(&raw, Some(wrap_w), true);
+    if !args.no_header {
+        let header = args
+            .file
+            .file_name()
+            .map(|n| n.to_string_lossy().to_uppercase().to_string())
+            .unwrap_or_default();
+        lines.insert(0, String::new());
+        lines.insert(0, header);
+        lines.insert(0, String::new());
+    }
+
+    enable_raw_mode().expect("failed to enable raw mode");
+    execute!(stdout(), EnterAlternateScreen, cursor::Hide)
+        .expect("failed to enter alternate screen");
+
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     let size = terminal.size()?;
 
@@ -284,13 +300,12 @@ fn run(args: &Args, lines: &[String]) -> Result<(), Box<dyn std::error::Error>> 
 
     let mut last_frame = Instant::now();
 
-    loop {
-        // -- input
+    let result = loop {
         if event::poll(Duration::ZERO)? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
                     match key.code {
-                        KeyCode::Char('q') | KeyCode::Esc => break,
+                        KeyCode::Char('q') | KeyCode::Esc => break Ok(()),
                         KeyCode::Char(' ') => {
                             if let AppState::Crawl { paused, .. } = &mut state {
                                 *paused = !*paused;
@@ -327,12 +342,11 @@ fn run(args: &Args, lines: &[String]) -> Result<(), Box<dyn std::error::Error>> 
                 if !*paused {
                     *scroll += *speed * delta.as_secs_f32();
                 }
-                render_crawl(frame, stars, lines, *scroll, args.left);
+                render_crawl(frame, stars, &lines, *scroll, args.border, args.no_header, args.left);
             }
             AppState::Done => {}
         })?;
 
-        // -- state transitions
         let size = terminal.size()?;
         match &state {
             AppState::Prologue { entered } => {
@@ -358,61 +372,18 @@ fn run(args: &Args, lines: &[String]) -> Result<(), Box<dyn std::error::Error>> 
                     state = AppState::Done;
                 }
             }
-            AppState::Done => break,
+            AppState::Done => break Ok(()),
         }
 
-        // -- frame rate cap
         let elapsed = last_frame.elapsed();
         let target = Duration::from_millis(FRAME_MS);
         if elapsed < target {
             thread::sleep(target - elapsed);
         }
-    }
-
-    Ok(())
-}
-
-fn main() {
-    let args = Args::parse();
-
-    if args.speed <= 0.0 {
-        eprintln!("Error: --speed must be positive");
-        std::process::exit(1);
-    }
-
-    let raw = match std::fs::read_to_string(&args.file) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("Error reading {:?}: {e}", args.file);
-            std::process::exit(1);
-        }
     };
-
-    // Always word-wrap at MAX_W for the TUI; --width overrides that ceiling.
-    let wrap_w = args.width.unwrap_or(MAX_W);
-    let mut lines = text::process_lines(&raw, Some(wrap_w), true);
-    if !args.no_header {
-        let header = args
-            .file
-            .file_name()
-            .map(|n| n.to_string_lossy().to_uppercase().to_string())
-            .unwrap_or_default();
-        lines.insert(0, String::new());
-        lines.insert(0, header);
-        lines.insert(0, String::new());
-    }
-
-    enable_raw_mode().expect("failed to enable raw mode");
-    execute!(stdout(), EnterAlternateScreen, cursor::Hide)
-        .expect("failed to enter alternate screen");
-
-    let result = run(&args, &lines);
 
     let _ = disable_raw_mode();
     let _ = execute!(stdout(), LeaveAlternateScreen, cursor::Show);
 
-    if let Err(e) = result {
-        eprintln!("Error: {e}");
-        std::process::exit(1);
-    }
+    result
 }

@@ -11,10 +11,6 @@ path = "src/lib.rs"
 name = "swcat"
 path = "src/main.rs"
 
-[[bin]]
-name = "swcat-tui"
-path = "src/bin/swcat_tui.rs"
-
 [dependencies]
 clap      = { version = "4.6.1", features = ["derive"] }
 macroquad = "0.4.14"
