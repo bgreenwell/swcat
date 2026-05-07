@@ -31,6 +31,7 @@ const SPEED_STEP: f32 = 0.5;
 const MAX_SPEED: f32 = 20.0;
 const STAR_COUNT: usize = 180;
 const FRAME_MS: u64 = 33; // ~30 fps
+const MAX_W: usize = 75;
 
 const LOGO_ART: &str = "\
  ____  _    _  ____    _  _____ \n\
@@ -180,7 +181,7 @@ fn render_logo(frame: &mut Frame, stars: &[Star], elapsed_ms: f32) {
     }
 }
 
-fn render_crawl(frame: &mut Frame, stars: &[Star], lines: &[String], scroll: f32) {
+fn render_crawl(frame: &mut Frame, stars: &[Star], lines: &[String], scroll: f32, left: bool) {
     let area = frame.area();
     let buf = frame.buffer_mut();
 
@@ -197,7 +198,6 @@ fn render_crawl(frame: &mut Frame, stars: &[Star], lines: &[String], scroll: f32
 
     let w = area.width as usize;
     let h = (area.height as usize).saturating_sub(1); // bottom row = progress bar
-    let max_w = 75_usize;
 
     for screen_row in 0..h {
         let depth_idx = h.saturating_sub(1 + screen_row);
@@ -209,23 +209,30 @@ fn render_crawl(frame: &mut Frame, stars: &[Star], lines: &[String], scroll: f32
         }
 
         let perspective = (1.0_f32 - depth).powf(1.5);
-        let display_w = ((perspective * max_w as f32) as usize).max(1);
+        let display_w = ((perspective * MAX_W as f32) as usize).max(1);
 
         let chars: Vec<char> = lines[line_idx as usize].chars().collect();
         let clipped: String = if chars.len() > display_w {
-            // Center-clip: trim equally from both sides
-            let skip = (chars.len() - display_w) / 2;
-            chars[skip..skip + display_w].iter().collect()
+            if left {
+                // Left-aligned: keep the leading characters, drop from the right
+                chars[..display_w].iter().collect()
+            } else {
+                // Centered: trim equally from both sides
+                let skip = (chars.len() - display_w) / 2;
+                chars[skip..skip + display_w].iter().collect()
+            }
         } else {
             chars.iter().collect()
         };
         let clipped_len = clipped.chars().count();
 
-        // Two-level centering:
-        //   1. Center the perspective band in the terminal
-        //   2. Center the actual text within that band
-        let band_left = (w.saturating_sub(display_w)) / 2;
-        let text_left = band_left + (display_w.saturating_sub(clipped_len)) / 2;
+        // Center the perspective band in the terminal, then place text within it.
+        let band_left = (w.saturating_sub(MAX_W)) / 2;
+        let text_left = if left {
+            band_left
+        } else {
+            band_left + (display_w.saturating_sub(clipped_len)) / 2
+        };
 
         let brightness = 1.0 - depth;
         let color = Color::Rgb(
@@ -320,7 +327,7 @@ fn run(args: &Args, lines: &[String]) -> Result<(), Box<dyn std::error::Error>> 
                 if !*paused {
                     *scroll += *speed * delta.as_secs_f32();
                 }
-                render_crawl(frame, stars, lines, *scroll);
+                render_crawl(frame, stars, lines, *scroll, args.left);
             }
             AppState::Done => {}
         })?;
@@ -381,7 +388,9 @@ fn main() {
         }
     };
 
-    let mut lines = text::process_lines(&raw, args.width, args.wrap);
+    // Always word-wrap at MAX_W for the TUI; --width overrides that ceiling.
+    let wrap_w = args.width.unwrap_or(MAX_W);
+    let mut lines = text::process_lines(&raw, Some(wrap_w), true);
     if !args.no_header {
         let header = args
             .file
