@@ -208,7 +208,7 @@ fn render_crawl(frame: &mut Frame, stars: &[Star], lines: &[String], scroll: f32
             continue;
         }
 
-        let perspective = (1.0_f32 - depth).powi(2);
+        let perspective = 1.0_f32 - depth * 0.85;
         let display_w = ((perspective * max_w as f32) as usize).max(1);
 
         let chars: Vec<char> = lines[line_idx as usize].chars().collect();
