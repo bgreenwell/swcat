@@ -26,9 +26,9 @@ use swcat::text;
 
 const PROLOGUE_MS: f32 = 4000.0;
 const LOGO_MS: f32 = 6000.0;
-const DEFAULT_SPEED: f32 = 50.0;
-const SPEED_STEP: f32 = 10.0;
-const MAX_SPEED: f32 = 500.0;
+const DEFAULT_SPEED: f32 = 3.0;  // lines per second
+const SPEED_STEP: f32 = 0.5;
+const MAX_SPEED: f32 = 20.0;
 const STAR_COUNT: usize = 180;
 const FRAME_MS: u64 = 33; // ~30 fps
 
